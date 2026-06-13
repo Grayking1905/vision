@@ -1,0 +1,38 @@
+{
+  "class_name": "Sequential",
+  "config": {
+    "name": "mock_model",
+    "layers": [
+      {
+        "class_name": "InputLayer",
+        "config": {
+          "name": "d2309406-0b39-40b9-bfe6-be65ccc94757"
+        }
+      },
+      {
+        "class_name": "Dense",
+        "config": {
+          "name": "13eb49e1-33b4-4916-8ea7-311153c93c6a"
+        }
+      },
+      {
+        "class_name": "Conv2D",
+        "config": {
+          "name": "396e2dfb-b7b2-4694-bd10-b6871a40619b"
+        }
+      },
+      {
+        "class_name": "Flatten",
+        "config": {
+          "name": "e77aa44d-60b1-448f-8007-0a5f05b59486"
+        }
+      },
+      {
+        "class_name": "Dropout",
+        "config": {
+          "name": "49d7f42a-4178-4812-ae64-5b0379d6db70"
+        }
+      }
+    ]
+  }
+}
