@@ -1,13 +1,15 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppTopBar from './components/AppTopBar';
 import WorkspaceLayout from './components/WorkspaceLayout';
 import ToastContainer from './components/shared/ToastContainer';
+import { useAppStore } from './stores/appStore';
 
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const DataUploadPage = lazy(() => import('./pages/DataUploadPage'));
 const DataProcessPage = lazy(() => import('./pages/DataProcessPage'));
 const CanvasPage = lazy(() => import('./pages/CanvasPage'));
+const PretrainedPage = lazy(() => import('./pages/PretrainedPage'));
 const TrainingPage = lazy(() => import('./pages/TrainingPage'));
 
 function LoadingFallback() {
@@ -20,6 +22,12 @@ function LoadingFallback() {
 }
 
 export default function App() {
+  const theme = useAppStore(s => s.theme);
+  
+  useEffect(() => {
+    document.documentElement.className = theme;
+  }, [theme]);
+
   return (
     <BrowserRouter>
       <div className="bg-orb bg-orb-violet" />
@@ -35,6 +43,7 @@ export default function App() {
               <Route path="dataset" element={<DataUploadPage />} />
               <Route path="process" element={<DataProcessPage />} />
               <Route path="canvas" element={<CanvasPage />} />
+              <Route path="pretrained" element={<PretrainedPage />} />
               <Route path="training" element={<TrainingPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/projects" replace />} />

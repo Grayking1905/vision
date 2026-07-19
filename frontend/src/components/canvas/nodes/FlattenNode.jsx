@@ -2,7 +2,7 @@ import { Handle, Position } from 'reactflow';
 
 export default function FlattenNode({ data, selected }) {
   return (
-    <div className={`vision-node node-flatten ${selected ? 'selected' : ''}`} style={{ minWidth: 130 }}>
+    <div className={`vision-node node-flatten ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Top} />
       <div className="vision-node-header"><span>≡</span> Flatten</div>
       <div className="vision-node-body">

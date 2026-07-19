@@ -41,3 +41,22 @@ export const getModelList = (projectId) => api.get(urls.modelList(projectId)).th
 export const getModelGraph = (name, projectId) =>
   api.get(urls.modelGraph(name, projectId)).then(r => r.data);
 export const deleteModelById = (id) => api.delete(urls.deleteModel(id)).then(r => r.data);
+
+// Pretrained Models
+export const getPretrainedCatalog = () => api.get(urls.pretrainedCatalog()).then(r => r.data);
+export const loadPretrained = (data) => api.post(urls.pretrainedLoad(), data).then(r => r.data);
+export const reverseEngineer = (id) => api.get(urls.pretrainedReverseEngineer(id)).then(r => r.data);
+export const getPretrainedSummary = (id) => api.get(urls.pretrainedSummary(id)).then(r => r.data);
+export const saveFineTuneConfig = (data) => api.patch(urls.pretrainedFineTuneConfig(), data).then(r => r.data);
+export const runFineTune = (pretrainedId, projectId) =>
+  api.post(urls.pretrainedFineTuneRun(), { pretrained_id: pretrainedId, project_id: projectId }).then(r => r.data);
+export const generateFineTuneCode = (pretrainedId, projectId) =>
+  api.post(urls.pretrainedFineTuneCode(), { pretrained_id: pretrainedId, project_id: projectId }, { responseType: 'blob' })
+    .then(r => {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(r.data);
+      link.download = `finetune_model.py`;
+      link.click();
+    });
+export const getLoadedModels = (projectId) => api.get(urls.pretrainedList(projectId)).then(r => r.data);
+export const deleteLoadedModel = (id) => api.delete(urls.pretrainedDelete(id)).then(r => r.data);

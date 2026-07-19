@@ -12,7 +12,8 @@ import ReactFlow, {
   Panel,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Undo2, Redo2, Trash2, Save, Code2, Cpu } from 'lucide-react';
+import dagre from 'dagre';
+import { Undo2, Redo2, Trash2, Save, Code2, Cpu, Wand2 } from 'lucide-react';
 
 import InputNode from './nodes/InputNode';
 import DenseNode from './nodes/DenseNode';
@@ -54,6 +55,26 @@ export default function CanvasPage() {
   const { projectId } = useParams();
   const { addToast, setModelList } = useAppStore();
   const wrapper = useRef(null);
+  // Handle reverse engineered graph load
+  useEffect(() => {
+    const reParam = new URLSearchParams(window.location.search).get('re');
+    if (reParam) {
+      const stored = localStorage.getItem('vision-re-graph');
+      if (stored) {
+        try {
+          const { nodes: reNodes, edges: reEdges, modelName } = JSON.parse(stored);
+          setNodes(reNodes);
+          setEdges(reEdges);
+          addToast(`Loaded architecture: ${modelName}`);
+          localStorage.removeItem('vision-re-graph');
+          // Clear query param
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch (e) {
+          console.error('Failed to parse RE graph', e);
+        }
+      }
+    }
+  }, []);
   const [rfInstance, setRfInstance] = useState(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -174,9 +195,83 @@ export default function CanvasPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo]);
 
+  // Shape validation
+  const validateEdges = useCallback(() => {
+    const getRank = (type) => {
+      if (['conv', 'maxpool'].includes(type)) return 3;
+      if (['dense', 'flatten'].includes(type)) return 1;
+      return null;
+    };
+    
+    setEdges(eds => eds.map(e => {
+      const sourceNode = nodes.find(n => n.id === e.source);
+      const targetNode = nodes.find(n => n.id === e.target);
+      if (!sourceNode || !targetNode) return e;
+      
+      const sRank = getRank(sourceNode.type);
+      const tRank = getRank(targetNode.type);
+      
+      let isError = false;
+      if (sRank === 3 && targetNode.type === 'dense') isError = true;
+      if (sRank === 1 && tRank === 3) isError = true;
+
+      const style = isError 
+        ? { stroke: '#ef4444', strokeWidth: 3, filter: 'drop-shadow(0 0 4px rgba(239,68,68,0.5))' } 
+        : { strokeDasharray: '5 5' };
+
+      return { ...e, style, animated: true };
+    }));
+  }, [nodes, setEdges]);
+
+  useEffect(() => {
+    const timer = setTimeout(validateEdges, 200);
+    return () => clearTimeout(timer);
+  }, [nodes.length, edges.length, validateEdges]);
+
+  // Auto Layout
+  const onLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
+    dagreGraph.setGraph({ rankdir: 'TB', ranksep: 70, nodesep: 50 });
+
+    nodes.forEach(n => dagreGraph.setNode(n.id, { width: 160, height: 80 }));
+    edges.forEach(e => dagreGraph.setEdge(e.source, e.target));
+
+    dagre.layout(dagreGraph);
+
+    takeSnapshot();
+    setNodes(nds => nds.map(n => {
+      const nodeWithPos = dagreGraph.node(n.id);
+      return { ...n, position: { x: nodeWithPos.x - 80, y: nodeWithPos.y - 40 } };
+    }));
+  }, [nodes, edges, setNodes, takeSnapshot]);
+
   const onConnect = useCallback((params) => {
     takeSnapshot();
     setEdges(eds => addEdge({ ...params, animated: true, style: { strokeDasharray: '5 5' } }, eds));
+    
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+      
+      gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    } catch (e) {
+      console.log('Audio disabled or not supported');
+    }
   }, [setEdges, takeSnapshot]);
 
   const onDrop = useCallback((e) => {
@@ -244,6 +339,9 @@ export default function CanvasPage() {
           </button>
           <button className="btn btn-ghost btn-sm" disabled={!future.length} onClick={redo} title="Redo (Ctrl+Y)">
             <Redo2 size={14} /> Redo
+          </button>
+          <button className="btn btn-ghost btn-sm" disabled={!nodes.length} onClick={onLayout} title="Auto-layout graph">
+            <Wand2 size={14} /> Magic Layout
           </button>
           <button className="btn btn-danger btn-sm" disabled={!nodes.length} onClick={handleClear}>
             <Trash2 size={14} /> Clear

@@ -3,7 +3,7 @@ import { Handle, Position } from 'reactflow';
 export default function MaxPoolNode({ data, selected }) {
   const p = data?.params || {};
   return (
-    <div className={`vision-node node-maxpool ${selected ? 'selected' : ''}`} style={{ minWidth: 140 }}>
+    <div className={`vision-node node-maxpool ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Top} />
       <div className="vision-node-header"><span>⊟</span> MaxPool2D</div>
       <div className="vision-node-body">

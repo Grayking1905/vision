@@ -3,6 +3,10 @@ import { useParams } from 'react-router-dom';
 import { GitBranch, Info, Loader } from 'lucide-react';
 import { getFiles, getCorrelation, getColumnStats } from '../services/api';
 import { useAppStore } from '../stores/appStore';
+import { AgGridReact } from 'ag-grid-react';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 function CorrelationHeatmap({ columns, matrix }) {
   const [hoveredCell, setHoveredCell] = useState(null);
@@ -120,7 +124,7 @@ function CorrelationHeatmap({ columns, matrix }) {
 
 export default function DataProcessPage() {
   const { projectId } = useParams();
-  const { addToast } = useAppStore();
+  const { addToast, theme } = useAppStore();
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState('');
   const [correlation, setCorrelation] = useState(null);
@@ -206,7 +210,7 @@ export default function DataProcessPage() {
 
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0' }}>
-            {['heatmap', 'stats'].map(tab => (
+            {['heatmap', 'stats', 'distributions'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -222,7 +226,7 @@ export default function DataProcessPage() {
                   transition: 'color 0.15s ease',
                 }}
               >
-                {tab === 'heatmap' ? '🔥 Correlation Heatmap' : '📊 Column Statistics'}
+                {tab === 'heatmap' ? '🔥 Correlation Heatmap' : tab === 'stats' ? '📊 Column Statistics' : '📈 Distributions'}
               </button>
             ))}
           </div>
@@ -259,41 +263,54 @@ export default function DataProcessPage() {
                   <div className="spinner" />
                 </div>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Column</th>
-                        <th>Type</th>
-                        <th>Count</th>
-                        <th>Nulls</th>
-                        <th>Unique</th>
-                        <th>Min</th>
-                        <th>Max</th>
-                        <th>Mean</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stats?.columns?.map(col => (
-                        <tr key={col.column}>
-                          <td style={{ fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
-                            {col.column}
-                          </td>
-                          <td><span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>{col.dtype}</span></td>
-                          <td>{col.count?.toLocaleString()}</td>
-                          <td>
-                            <span style={{ color: col.null_count > 0 ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
-                              {col.null_count}
-                            </span>
-                          </td>
-                          <td>{col.unique}</td>
-                          <td className="font-mono">{col.min ?? '—'}</td>
-                          <td className="font-mono">{col.max ?? '—'}</td>
-                          <td className="font-mono">{col.mean ?? '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className={theme === 'light' ? 'ag-theme-alpine' : 'ag-theme-alpine-dark'} style={{ height: 500, width: '100%', '--ag-background-color': 'transparent', '--ag-header-background-color': theme === 'light' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.02)', '--ag-border-color': 'var(--border-subtle)' }}>
+                  <AgGridReact
+                    rowData={stats?.columns || []}
+                    columnDefs={[
+                      { field: 'column', headerName: 'Column', flex: 1, filter: true },
+                      { field: 'dtype', headerName: 'Type', width: 120 },
+                      { field: 'count', headerName: 'Count', width: 100 },
+                      { field: 'null_count', headerName: 'Nulls', width: 100 },
+                      { field: 'unique', headerName: 'Unique', width: 100 },
+                      { field: 'min', headerName: 'Min', width: 100 },
+                      { field: 'max', headerName: 'Max', width: 100 },
+                      { field: 'mean', headerName: 'Mean', width: 100 },
+                    ]}
+                    pagination={true}
+                    paginationPageSize={10}
+                    domLayout="normal"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Distributions Tab */}
+          {activeTab === 'distributions' && (
+            <div className="glass-card-elevated" style={{ padding: '1.5rem' }}>
+              <h3 style={{ marginBottom: '1.5rem', fontSize: '1rem' }}>Feature Distributions</h3>
+              {loadingStats ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                  {stats?.columns?.filter(c => c.histogram).map(col => (
+                    <div key={col.column} style={{ background: 'var(--glass-bg)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '1rem' }}>
+                      <p style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-primary)' }}>{col.column}</p>
+                      <div style={{ height: 200, width: '100%' }}>
+                        <ResponsiveContainer>
+                          <BarChart data={col.histogram}>
+                            <XAxis dataKey="bin" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                            <Tooltip contentStyle={{ background: '#1e1e2f', border: '1px solid rgba(255,255,255,0.1)' }} itemStyle={{ color: '#fff' }} />
+                            <Bar dataKey="count" fill="var(--accent-violet-light)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  ))}
+                  {(!stats?.columns || stats.columns.filter(c => c.histogram).length === 0) && (
+                    <p style={{ color: 'var(--text-muted)' }}>No numeric columns available for distribution.</p>
+                  )}
                 </div>
               )}
             </div>

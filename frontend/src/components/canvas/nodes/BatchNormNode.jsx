@@ -2,7 +2,7 @@ import { Handle, Position } from 'reactflow';
 
 export default function BatchNormNode({ data, selected }) {
   return (
-    <div className={`vision-node node-batchnorm ${selected ? 'selected' : ''}`} style={{ minWidth: 140 }}>
+    <div className={`vision-node node-batchnorm ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Top} />
       <div className="vision-node-header"><span>≋</span> BatchNorm</div>
       <div className="vision-node-body">

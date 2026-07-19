@@ -29,3 +29,15 @@ export const modelList = (projectId) =>
 export const modelGraph = (name, projectId) =>
   `${API_BASE}/model/${name}/graph${projectId ? `?project_id=${projectId}` : ''}`;
 export const deleteModel = (id) => `${API_BASE}/model/${id}`;
+
+// Pretrained Models
+export const pretrainedCatalog = () => `${API_BASE}/pretrained/catalog`;
+export const pretrainedLoad = () => `${API_BASE}/pretrained/load`;
+export const pretrainedReverseEngineer = (id) => `${API_BASE}/pretrained/${id}/reverse-engineer`;
+export const pretrainedSummary = (id) => `${API_BASE}/pretrained/${id}/summary`;
+export const pretrainedFineTuneConfig = () => `${API_BASE}/pretrained/fine-tune/config`;
+export const pretrainedFineTuneRun = () => `${API_BASE}/pretrained/fine-tune/run`;
+export const pretrainedFineTuneCode = () => `${API_BASE}/pretrained/fine-tune/code`;
+export const pretrainedList = (projectId) =>
+  projectId ? `${API_BASE}/pretrained/list?project_id=${projectId}` : `${API_BASE}/pretrained/list`;
+export const pretrainedDelete = (id) => `${API_BASE}/pretrained/${id}`;

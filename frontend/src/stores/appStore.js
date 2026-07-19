@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 
 export const useAppStore = create((set, get) => ({
+  // Theme state
+  theme: localStorage.getItem('vision-theme') || 'dark',
+  toggleTheme: () => set(state => {
+    const newTheme = state.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('vision-theme', newTheme);
+    return { theme: newTheme };
+  }),
+
   // Current project
   currentProject: null,
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -25,5 +33,20 @@ export const useAppStore = create((set, get) => ({
   setIsTraining: (v) => set({ isTraining: v }),
   addTrainingMetric: (metric) =>
     set(state => ({ trainingMetrics: [...state.trainingMetrics, metric] })),
-  clearTraining: () => set({ trainingLogs: [], trainingMetrics: [], isTraining: false }),
+  // Pretrained State
+  pretrainedCatalog: [],
+  setPretrainedCatalog: (catalog) => set({ pretrainedCatalog: catalog }),
+  loadedModels: [],
+  setLoadedModels: (models) => set({ loadedModels: models }),
+  selectedPretrained: null,
+  setSelectedPretrained: (model) => set({ selectedPretrained: model }),
+  fineTuneConfig: {},
+  setFineTuneConfig: (config) => set(state => ({ fineTuneConfig: { ...state.fineTuneConfig, ...config } })),
+  isFineTuning: false,
+  setIsFineTuning: (v) => set({ isFineTuning: v }),
+  fineTuneLogs: [],
+  fineTuneMetrics: [],
+  addFineTuneMetric: (metric) =>
+    set(state => ({ fineTuneMetrics: [...state.fineTuneMetrics, metric] })),
+  clearFineTune: () => set({ fineTuneLogs: [], fineTuneMetrics: [], isFineTuning: false }),
 }));
