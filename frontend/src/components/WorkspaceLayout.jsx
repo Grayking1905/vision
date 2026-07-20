@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useParams } from 'react-router-dom';
-import { Database, GitBranch, Cpu, Activity, ChevronRight, Box } from 'lucide-react';
+import { Database, GitBranch, Cpu, Activity, ChevronRight, Box, Plug } from 'lucide-react';
 
 const navItems = [
   { to: 'dataset', label: 'Dataset', icon: Database, description: 'Upload & manage data' },
@@ -7,6 +7,7 @@ const navItems = [
   { to: 'canvas', label: 'Canvas', icon: Cpu, description: 'Build neural network' },
   { to: 'pretrained', label: 'Model Hub', icon: Box, description: 'Pretrained & fine-tune' },
   { to: 'training', label: 'Training', icon: Activity, description: 'Train & monitor' },
+  { to: 'integrations', label: 'Integrations', icon: Plug, description: 'HF, GitHub, Colab & Local' },
 ];
 
 export default function WorkspaceLayout() {

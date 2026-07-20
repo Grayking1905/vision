@@ -49,4 +49,28 @@ export const useAppStore = create((set, get) => ({
   addFineTuneMetric: (metric) =>
     set(state => ({ fineTuneMetrics: [...state.fineTuneMetrics, metric] })),
   clearFineTune: () => set({ fineTuneLogs: [], fineTuneMetrics: [], isFineTuning: false }),
+
+  // ── Integration Connectors ──
+  integrationTokens: { huggingface_configured: false, github_configured: false },
+  setIntegrationTokens: (tokens) => set({ integrationTokens: tokens }),
+
+  hfSearchResults: [],
+  setHfSearchResults: (results) => set({ hfSearchResults: results }),
+
+  githubRepos: [],
+  setGithubRepos: (repos) => set({ githubRepos: repos }),
+
+  colabStatus: null,
+  setColabStatus: (status) => set({ colabStatus: status }),
+
+  localRunStatus: null,
+  setLocalRunStatus: (status) => set({ localRunStatus: status }),
+
+  terminalOutput: [],
+  appendTerminalOutput: (line) =>
+    set(state => ({ terminalOutput: [...state.terminalOutput, line] })),
+  clearTerminalOutput: () => set({ terminalOutput: [] }),
+
+  isRunningLocal: false,
+  setIsRunningLocal: (v) => set({ isRunningLocal: v }),
 }));

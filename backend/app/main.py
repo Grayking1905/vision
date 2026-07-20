@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import create_db_and_tables
 from app.exceptions import AppException, app_exception_handler, generic_exception_handler
-from app.routers import data_process, data_upload, deep_learning, pretrained, project
+from app.routers import data_process, data_upload, deep_learning, integrations, pretrained, project
 from app.socketio_instance import sio
 
 settings = get_settings()
@@ -50,6 +50,7 @@ app.include_router(data_upload.router, prefix=BASE)
 app.include_router(data_process.router, prefix=BASE)
 app.include_router(deep_learning.router, prefix=BASE)
 app.include_router(pretrained.router, prefix=BASE)
+app.include_router(integrations.router, prefix=BASE)
 
 
 @app.get("/health")

@@ -60,3 +60,52 @@ export const generateFineTuneCode = (pretrainedId, projectId) =>
     });
 export const getLoadedModels = (projectId) => api.get(urls.pretrainedList(projectId)).then(r => r.data);
 export const deleteLoadedModel = (id) => api.delete(urls.pretrainedDelete(id)).then(r => r.data);
+
+// ── Integration Connectors ──────────────────────────────────────────────
+
+// Hugging Face
+export const searchHFModels = (query, limit, sort) =>
+  api.get(urls.hfModels(), { params: { query, limit, sort } }).then(r => r.data);
+export const searchHFDatasets = (query, limit, sort) =>
+  api.get(urls.hfDatasets(), { params: { query, limit, sort } }).then(r => r.data);
+export const searchHFSpaces = (query, limit, sort) =>
+  api.get(urls.hfSpaces(), { params: { query, limit, sort } }).then(r => r.data);
+export const downloadHFRepo = (data) =>
+  api.post(urls.hfDownload(), data).then(r => r.data);
+
+// GitHub
+export const getGHRepos = (perPage, page) =>
+  api.get(urls.ghRepos(), { params: { per_page: perPage, page } }).then(r => r.data);
+export const getGHRepoContents = (owner, repo, path) =>
+  api.get(urls.ghRepoContents(owner, repo), { params: { path } }).then(r => r.data);
+export const pushToGHRepo = (owner, repo, data) =>
+  api.post(urls.ghRepoPush(owner, repo), data).then(r => r.data);
+export const pullGHRepo = (owner, repo, data) =>
+  api.post(urls.ghRepoPull(owner, repo), data).then(r => r.data);
+
+// Colab
+export const launchColab = (data) =>
+  api.post(urls.colabLaunch(), data).then(r => r.data);
+export const getColabStatus = () =>
+  api.get(urls.colabStatus()).then(r => r.data);
+export const downloadColabNotebook = (notebookPath) =>
+  api.get(urls.colabDownload(), { params: { notebook_path: notebookPath }, responseType: 'blob' })
+    .then(r => {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(r.data);
+      link.download = 'vision_notebook.ipynb';
+      link.click();
+    });
+
+// Local Runner
+export const runLocal = (data) =>
+  api.post(urls.localRun(), data).then(r => r.data);
+export const getLocalStatus = () =>
+  api.get(urls.localStatus()).then(r => r.data);
+
+// Integration Settings
+export const getIntegrationSettings = () =>
+  api.get(urls.integrationSettings()).then(r => r.data);
+export const updateIntegrationSettings = (data) =>
+  api.put(urls.integrationSettings(), data).then(r => r.data);
+

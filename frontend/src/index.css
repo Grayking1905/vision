@@ -757,3 +757,8 @@ p { color: var(--text-secondary); }
   h1 { font-size: 1.75rem; }
   h2 { font-size: 1.375rem; }
 }
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+

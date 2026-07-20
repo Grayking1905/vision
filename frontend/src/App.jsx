@@ -11,6 +11,7 @@ const DataProcessPage = lazy(() => import('./pages/DataProcessPage'));
 const CanvasPage = lazy(() => import('./pages/CanvasPage'));
 const PretrainedPage = lazy(() => import('./pages/PretrainedPage'));
 const TrainingPage = lazy(() => import('./pages/TrainingPage'));
+const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
 
 function LoadingFallback() {
   return (
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="canvas" element={<CanvasPage />} />
               <Route path="pretrained" element={<PretrainedPage />} />
               <Route path="training" element={<TrainingPage />} />
+              <Route path="integrations" element={<IntegrationsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/projects" replace />} />
           </Routes>
