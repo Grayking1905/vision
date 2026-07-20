@@ -94,15 +94,22 @@ def get_column_stats_service(db: Session, file_id: str) -> tuple:
     for col in df.columns:
         is_num = col in numeric_cols
         null_count = int(df[col].isnull().sum())
+        
+        histogram = None
+        if is_num and pd.notna(df[col].mean()) and len(df[col].dropna()) > 0:
+            counts, bins = np.histogram(df[col].dropna(), bins=10)
+            histogram = [{"bin": f"{round(bins[i], 2)} to {round(bins[i+1], 2)}", "count": int(counts[i])} for i in range(len(counts))]
+
         entry: dict = {
             "column": col,
             "dtype": str(df[col].dtype),
             "count": int(df[col].count()),
             "null_count": null_count,
             "mean": round(float(df[col].mean()), 4) if is_num and pd.notna(df[col].mean()) else None,
-            "min": round(float(df[col].min()), 4) if is_num else None,
-            "max": round(float(df[col].max()), 4) if is_num else None,
+            "min": round(float(df[col].min()), 4) if is_num and pd.notna(df[col].min()) else None,
+            "max": round(float(df[col].max()), 4) if is_num and pd.notna(df[col].max()) else None,
             "unique": int(df[col].nunique()),
+            "histogram": histogram
         }
         columns.append(entry)
 

@@ -3,7 +3,7 @@ import { Handle, Position } from 'reactflow';
 export default function ConvNode({ data, selected }) {
   const p = data?.params || {};
   return (
-    <div className={`vision-node node-conv ${selected ? 'selected' : ''}`} style={{ minWidth: 160 }}>
+    <div className={`vision-node node-conv ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Top} />
       <div className="vision-node-header"><span>⊞</span> Conv2D</div>
       <div className="vision-node-body">

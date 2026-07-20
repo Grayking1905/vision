@@ -10,6 +10,7 @@ from sqlmodel import Field, Relationship, SQLModel
 if TYPE_CHECKING:
     from app.models.data import DataFile
     from app.models.ml import ModelBasic
+    from app.models.pretrained import PretrainedModel
 
 
 class Project(SQLModel, table=True):
@@ -35,6 +36,10 @@ class Project(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all,delete"},
     )
     models: list["ModelBasic"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all,delete"},
+    )
+    pretrained_models: list["PretrainedModel"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all,delete"},
     )

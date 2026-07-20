@@ -18,7 +18,9 @@ export default function LayerSidebar() {
     <div style={{
       width: '168px',
       flexShrink: 0,
-      background: 'rgba(10,10,15,0.5)',
+      background: 'var(--glass-bg)',
+      backdropFilter: 'saturate(180%) blur(24px)',
+      WebkitBackdropFilter: 'saturate(180%) blur(24px)',
       border: '1px solid var(--border-subtle)',
       borderRadius: 'var(--radius-lg)',
       padding: '0.875rem 0.75rem',

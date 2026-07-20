@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     api_base: str = "/api/v1"
     debug: bool = True
 
+    # Integration tokens
+    huggingface_token: str = ""
+    github_token: str = ""
+
     model_config = {"env_file": ".env"}
 
     @property

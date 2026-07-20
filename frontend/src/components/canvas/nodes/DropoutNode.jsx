@@ -3,7 +3,7 @@ import { Handle, Position } from 'reactflow';
 export default function DropoutNode({ data, selected }) {
   const p = data?.params || {};
   return (
-    <div className={`vision-node node-dropout ${selected ? 'selected' : ''}`} style={{ minWidth: 130 }}>
+    <div className={`vision-node node-dropout ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Top} />
       <div className="vision-node-header"><span>⊗</span> Dropout</div>
       <div className="vision-node-body">
