@@ -95,3 +95,133 @@ def delete_file_service(db: Session, file_id: str) -> tuple:
             pass
 
     return _resp(200, True, "File deleted")
+
+
+SAMPLE_CATALOG = [
+    {
+        "id": "iris_classification",
+        "name": "Iris Flower Classification",
+        "filename": "iris_classification.csv",
+        "task_type": "Classification",
+        "problem_type_id": 1,
+        "rows": 150,
+        "features": 4,
+        "target": "species_id",
+        "loss": "sparse_categorical_crossentropy",
+        "description": "Classic 3-class benchmark classifying iris species from sepal/petal measurements.",
+        "badge": "Beginner Friendly",
+        "color": "cyan",
+    },
+    {
+        "id": "heart_disease",
+        "name": "Heart Disease Risk",
+        "filename": "heart_disease.csv",
+        "task_type": "Binary Classification",
+        "problem_type_id": 1,
+        "rows": 300,
+        "features": 11,
+        "target": "heart_disease",
+        "loss": "sparse_categorical_crossentropy",
+        "description": "Clinical health attributes predicting risk of cardiac disease. Excellent for EDA heatmaps.",
+        "badge": "Healthcare",
+        "color": "violet",
+    },
+    {
+        "id": "customer_churn",
+        "name": "Customer Churn Prediction",
+        "filename": "customer_churn.csv",
+        "task_type": "Binary Classification",
+        "problem_type_id": 1,
+        "rows": 1000,
+        "features": 8,
+        "target": "churn",
+        "loss": "sparse_categorical_crossentropy",
+        "description": "Banking customer demographics and account behavior to predict churn.",
+        "badge": "Business",
+        "color": "amber",
+    },
+    {
+        "id": "california_housing",
+        "name": "California Housing Prices",
+        "filename": "california_housing.csv",
+        "task_type": "Regression",
+        "problem_type_id": 2,
+        "rows": 1000,
+        "features": 8,
+        "target": "median_house_value",
+        "loss": "mean_squared_error",
+        "description": "Predict median house values across California districts using census statistics.",
+        "badge": "Regression",
+        "color": "emerald",
+    },
+    {
+        "id": "wine_quality",
+        "name": "Wine Recognition",
+        "filename": "wine_quality.csv",
+        "task_type": "Multi-class Classification",
+        "problem_type_id": 3,
+        "rows": 178,
+        "features": 13,
+        "target": "cultivar_class",
+        "loss": "sparse_categorical_crossentropy",
+        "description": "Chemical analysis of 13 attributes from wines grown in a specific Italian region.",
+        "badge": "Chemistry",
+        "color": "pink",
+    },
+    {
+        "id": "mnist_digits_mini",
+        "name": "MNIST Handwritten Digits (8x8)",
+        "filename": "mnist_digits_mini.csv",
+        "task_type": "Image / Digits",
+        "problem_type_id": 3,
+        "rows": 500,
+        "features": 64,
+        "target": "digit_label",
+        "loss": "sparse_categorical_crossentropy",
+        "description": "Flattened 8x8 pixel grayscale values classifying digits 0 through 9.",
+        "badge": "Vision Tabular",
+        "color": "indigo",
+    },
+    {
+        "id": "sample_images",
+        "name": "Sample Geometric Shapes (ZIP)",
+        "filename": "sample_images.zip",
+        "task_type": "Image Archive",
+        "problem_type_id": 1,
+        "rows": 30,
+        "features": 3,
+        "target": "folder_label",
+        "loss": "sparse_categorical_crossentropy",
+        "description": "ZIP archive with labeled folders (circles, squares, triangles) for testing image uploads.",
+        "badge": "Image Archive",
+        "color": "blue",
+    },
+]
+
+
+def list_sample_datasets_service() -> tuple:
+    return _resp(200, True, "Sample datasets catalog retrieved", SAMPLE_CATALOG)
+
+
+def load_sample_dataset_service(db: Session, sample_id: str, project_id: str | None = None) -> tuple:
+    sample = next((s for s in SAMPLE_CATALOG if s["id"] == sample_id or s["filename"] == sample_id), None)
+    if not sample:
+        return _resp(404, False, f"Sample dataset '{sample_id}' not found")
+
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    demo_dir = os.path.join(base_dir, "demo_datasets")
+    file_path = os.path.join(demo_dir, sample["filename"])
+
+    if not os.path.exists(file_path):
+        return _resp(404, False, f"Sample file '{sample['filename']}' not found on disk")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    return add_file_service(
+        db=db,
+        filename=sample["filename"],
+        file_content=content,
+        project_id=project_id,
+    )
+

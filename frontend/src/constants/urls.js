@@ -10,6 +10,8 @@ export const files = (projectId) =>
   projectId ? `${API_BASE}/files?project_id=${projectId}` : `${API_BASE}/files`;
 export const fileUpload = () => `${API_BASE}/files`;
 export const fileDelete = (id) => `${API_BASE}/files/${id}`;
+export const sampleDatasets = () => `${API_BASE}/files/samples`;
+export const loadSampleDataset = () => `${API_BASE}/files/samples/load`;
 
 // Data Process
 export const correlation = (fileId) => `${API_BASE}/data/${fileId}/correlation`;

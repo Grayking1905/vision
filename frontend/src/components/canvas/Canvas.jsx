@@ -13,7 +13,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { Undo2, Redo2, Trash2, Save, Code2, Cpu, Wand2 } from 'lucide-react';
+import { Undo2, Redo2, Trash2, Save, Code2, Cpu, Wand2, LayoutTemplate, Sparkles } from 'lucide-react';
+import { MODEL_TEMPLATES } from '../../constants/modelTemplates';
 
 import InputNode from './nodes/InputNode';
 import DenseNode from './nodes/DenseNode';
@@ -87,8 +88,39 @@ export default function CanvasPage() {
   const [codeLoading, setCodeLoading] = useState(false);
   const [past, setPast] = useState([]);
   const [future, setFuture] = useState([]);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const draftKey = `vision_draft_${projectId || 'default'}`;
   const isLoaded = useRef(false);
+
+  const handleSelectTemplate = (template) => {
+    takeSnapshot();
+    setNodes(template.nodes);
+    setEdges(template.edges);
+    setModelName(template.id.replace(/_/g, '-'));
+    setSelectedNodeId(null);
+    setShowTemplatesModal(false);
+    addToast(`Loaded template: ${template.name}`);
+    setTimeout(() => {
+      // Trigger layout arrange
+      const g = new dagre.graphlib.Graph();
+      g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60 });
+      g.setDefaultEdgeLabel(() => ({}));
+      template.nodes.forEach(n => g.setNode(n.id, { width: 180, height: 60 }));
+      template.edges.forEach(e => g.setEdge(e.source, e.target));
+      dagre.layout(g);
+      const positioned = template.nodes.map(n => {
+        const nodeWithPos = g.node(n.id);
+        return {
+          ...n,
+          position: {
+            x: (nodeWithPos?.x ?? 280) - 90,
+            y: (nodeWithPos?.y ?? 40) - 30,
+          },
+        };
+      });
+      setNodes(positioned);
+    }, 50);
+  };
 
   // Live code transpilation — debounced
   useEffect(() => {
@@ -334,6 +366,9 @@ export default function CanvasPage() {
           <h2>Model Canvas</h2>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowTemplatesModal(true)} title="Load prebuilt architecture template">
+            <LayoutTemplate size={14} style={{ color: 'var(--accent-cyan)' }} /> Templates
+          </button>
           <button className="btn btn-ghost btn-sm" disabled={!past.length} onClick={undo} title="Undo (Ctrl+Z)">
             <Undo2 size={14} /> Undo
           </button>
@@ -438,6 +473,86 @@ export default function CanvasPage() {
 
       {/* Model summary modal */}
       {modelSummary && <ModelSummaryPanel summary={modelSummary} onClose={() => setModelSummary(null)} />}
+
+      {/* Prebuilt Templates Quick Modal */}
+      {showTemplatesModal && (
+        <div className="modal-overlay" onClick={() => setShowTemplatesModal(false)}>
+          <div
+            className="modal"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '800px', width: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Sparkles size={18} style={{ color: 'var(--accent-cyan)' }} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Prebuilt Architecture Templates
+                </h3>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowTemplatesModal(false)}>✕</button>
+            </div>
+
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+              Select an architecture to instantly populate the visual canvas with configured nodes and edges.
+            </p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+              gap: '0.875rem',
+              overflowY: 'auto',
+              maxHeight: '480px',
+              paddingRight: '0.25rem',
+            }}>
+              {MODEL_TEMPLATES.map(t => (
+                <div
+                  key={t.id}
+                  className="glass-card"
+                  style={{
+                    padding: '1rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    border: '1px solid var(--border-subtle)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onClick={() => handleSelectTemplate(t)}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-violet-light)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-subtle)'}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {t.name}
+                      </h4>
+                      <span className={`badge ${t.color === 'cyan' ? 'badge-cyan' : t.color === 'violet' ? 'badge-violet' : 'badge-emerald'}`} style={{ fontSize: '0.62rem' }}>
+                        {t.badge}
+                      </span>
+                    </div>
+
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.6rem', lineHeight: '1.35' }}>
+                      {t.description}
+                    </p>
+
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem' }}>
+                      <span>In: <strong style={{ color: 'var(--accent-cyan)' }}>{t.inputShape}</strong></span>
+                      <span>•</span>
+                      <span>Out: <strong style={{ color: 'var(--accent-violet-light)' }}>{t.outputShape}</strong></span>
+                    </div>
+                  </div>
+
+                  <button className="btn btn-secondary btn-sm" style={{ width: '100%', fontSize: '0.72rem', padding: '0.3rem 0.5rem' }}>
+                    Load this Architecture
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

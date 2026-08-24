@@ -9,6 +9,7 @@ const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const DataUploadPage = lazy(() => import('./pages/DataUploadPage'));
 const DataProcessPage = lazy(() => import('./pages/DataProcessPage'));
 const CanvasPage = lazy(() => import('./pages/CanvasPage'));
+const ModelTemplatesPage = lazy(() => import('./pages/ModelTemplatesPage'));
 const PretrainedPage = lazy(() => import('./pages/PretrainedPage'));
 const TrainingPage = lazy(() => import('./pages/TrainingPage'));
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
@@ -43,6 +44,7 @@ export default function App() {
               <Route index element={<Navigate to="dataset" replace />} />
               <Route path="dataset" element={<DataUploadPage />} />
               <Route path="process" element={<DataProcessPage />} />
+              <Route path="templates" element={<ModelTemplatesPage />} />
               <Route path="canvas" element={<CanvasPage />} />
               <Route path="pretrained" element={<PretrainedPage />} />
               <Route path="training" element={<TrainingPage />} />

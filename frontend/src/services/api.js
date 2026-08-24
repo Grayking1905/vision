@@ -13,6 +13,9 @@ export const getFiles = (projectId) => api.get(urls.files(projectId)).then(r => 
 export const uploadFile = (formData) =>
   api.post(urls.fileUpload(), formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 export const deleteFile = (id) => api.delete(urls.fileDelete(id)).then(r => r.data);
+export const getSampleDatasets = () => api.get(urls.sampleDatasets()).then(r => r.data);
+export const loadSampleDataset = (sampleId, projectId) =>
+  api.post(urls.loadSampleDataset(), { sample_id: sampleId, project_id: projectId }).then(r => r.data);
 
 // Data Process
 export const getCorrelation = (fileId) => api.get(urls.correlation(fileId)).then(r => r.data);
