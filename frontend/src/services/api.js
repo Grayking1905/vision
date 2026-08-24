@@ -30,8 +30,12 @@ export const transpileGraph = (nodes, edges) =>
 export const saveModel = (data) => api.post(urls.saveModel(), data).then(r => r.data);
 export const updateTrainingConfig = (data) =>
   api.patch(urls.updateTrainingConfig(), data).then(r => r.data);
-export const runModel = (modelName, projectId) =>
-  api.post(urls.runModel(), { model_name: modelName, project_id: projectId }).then(r => r.data);
+export const runModel = (modelName, projectId, configOverrides = {}) =>
+  api.post(urls.runModel(), { model_name: modelName, project_id: projectId, ...configOverrides }).then(r => r.data);
+export const getTrainedModels = (projectId) =>
+  api.get(urls.trainedModelList(projectId)).then(r => r.data);
+export const exportTrainedToPretrained = (modelName) =>
+  api.post(urls.exportTrainedToPretrained(modelName)).then(r => r.data);
 export const downloadCode = (modelName, projectId) =>
   api.post(urls.downloadCode(), { model_name: modelName, project_id: projectId }, { responseType: 'blob' })
     .then(r => {

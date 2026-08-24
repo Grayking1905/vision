@@ -28,6 +28,12 @@ export const runModel = () => `${API_BASE}/model/run`;
 export const downloadCode = () => `${API_BASE}/model/code`;
 export const modelList = (projectId) =>
   projectId ? `${API_BASE}/model/list?project_id=${projectId}` : `${API_BASE}/model/list`;
+export const trainedModelList = (projectId) =>
+  projectId ? `${API_BASE}/model/trained/list?project_id=${projectId}` : `${API_BASE}/model/trained/list`;
+export const downloadTrainedModel = (modelName, format = 'keras') =>
+  `${API_BASE}/model/trained/${modelName}/download?format=${format}`;
+export const exportTrainedToPretrained = (modelName) =>
+  `${API_BASE}/model/trained/${modelName}/export-to-pretrained`;
 export const modelGraph = (name, projectId) =>
   `${API_BASE}/model/${name}/graph${projectId ? `?project_id=${projectId}` : ''}`;
 export const deleteModel = (id) => `${API_BASE}/model/${id}`;

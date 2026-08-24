@@ -48,6 +48,14 @@ class TrainingConfigRequest(BaseModel):
 class ModelNameRequest(BaseModel):
     model_name: str
     project_id: Optional[str] = None
+    file_id: Optional[str] = None
+    target_field: Optional[str] = None
+    epochs: Optional[int] = None
+    batch_size: Optional[int] = None
+    optimizer: Optional[str] = None
+    metric: Optional[str] = None
+    training_split: Optional[float] = None
+    problem_type_id: Optional[int] = None
 
 
 class TranspileRequest(BaseModel):

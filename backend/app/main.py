@@ -20,9 +20,10 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     # Create all tables on startup
     create_db_and_tables()
-    # Ensure upload/model directories exist
+    # Ensure upload/model/trained_models directories exist
     os.makedirs(settings.upload_folder, exist_ok=True)
     os.makedirs(settings.model_folder, exist_ok=True)
+    os.makedirs(settings.trained_model_folder, exist_ok=True)
     yield
 
 

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = "http://localhost:5173,http://localhost:3000"
     upload_folder: str = "./data/uploads"
     model_folder: str = "./data/models"
+    trained_model_folder: str = "./data/trained_models"
     max_content_length: int = 200 * 1024 * 1024
     api_base: str = "/api/v1"
     debug: bool = True

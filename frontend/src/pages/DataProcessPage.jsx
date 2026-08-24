@@ -13,10 +13,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Image as ImageIcon,
+  Layers,
+  Sparkles,
+  Maximize2,
+  X,
+  FileArchive,
+  Grid,
 } from 'lucide-react';
 import { getFiles, getCorrelation, getColumnStats } from '../services/api';
 import { useAppStore } from '../stores/appStore';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 function CorrelationHeatmap({ columns, matrix }) {
   const [hoveredCell, setHoveredCell] = useState(null);
@@ -33,7 +40,15 @@ function CorrelationHeatmap({ columns, matrix }) {
     }
   };
 
-  const cellSize = Math.max(28, Math.min(52, Math.floor(560 / columns.length)));
+  const cellSize = Math.max(28, Math.min(52, Math.floor(560 / (columns?.length || 1))));
+
+  if (!columns || columns.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+        No numeric columns available for correlation heatmap.
+      </div>
+    );
+  }
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -100,92 +115,75 @@ function CorrelationHeatmap({ columns, matrix }) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: cellSize > 38 ? '0.65rem' : '0',
-                    color: 'rgba(255,255,255,0.85)',
-                    fontWeight: 600,
-                    fontFamily: 'var(--font-mono)',
-                    position: 'relative',
-                    cursor: 'default',
-                    transition: 'transform 0.1s ease, border-color 0.1s ease',
+                    fontSize: '0.6rem',
+                    color:
+                      val !== null && Math.abs(parseFloat(val)) > 0.4
+                        ? '#fff'
+                        : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    margin: '1px',
+                    transition: 'transform 0.15s ease, border-color 0.15s ease',
+                    transform: isHovered ? 'scale(1.15)' : 'none',
+                    zIndex: isHovered ? 10 : 1,
                   }}
-                  onMouseEnter={() => setHoveredCell({ i, j })}
+                  onMouseEnter={() => setHoveredCell({ i, j, val, x: columns[j], y: columns[i] })}
                   onMouseLeave={() => setHoveredCell(null)}
-                  title={`${columns[i]} ↔ ${columns[j]}: ${
-                    val !== null ? val.toFixed(3) : 'N/A'
-                  }`}
                 >
-                  {cellSize > 38 && val !== null ? val.toFixed(2) : ''}
+                  {cellSize >= 40 && val !== null ? parseFloat(val).toFixed(2) : ''}
                 </div>
               );
             })}
           </div>
         ))}
-      </div>
 
-      {/* Legend */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {hoveredCell && (
           <div
             style={{
-              width: 60,
-              height: 12,
-              borderRadius: 4,
-              background:
-                'linear-gradient(to right, rgba(6,182,212,0.7), rgba(255,255,255,0.05), rgba(124,58,237,0.8))',
+              marginTop: '1rem',
+              padding: '0.5rem 0.75rem',
+              background: 'rgba(16,16,31,0.9)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border-medium)',
+              fontSize: '0.8rem',
+              display: 'inline-flex',
+              gap: '1rem',
             }}
-          />
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            -1 (negative) → 0 → +1 (positive)
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'rgba(124,58,237,0.7)' }} />
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Positive correlation</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'rgba(6,182,212,0.6)' }} />
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Negative correlation</span>
-        </div>
+          >
+            <span>
+              <strong>{hoveredCell.y}</strong> vs <strong>{hoveredCell.x}</strong>
+            </span>
+            <span style={{ color: 'var(--accent-violet-light)' }}>
+              Correlation: <strong>{hoveredCell.val ?? 'N/A'}</strong>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function ColumnStatsTable({ columns, totalRows, onViewDistribution }) {
+function ColumnStatsTable({ columns, onJumpToDistribution }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState('ALL');
   const [sortField, setSortField] = useState('column');
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [pageSize, setPageSize] = useState(10);
+  const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
+  const filteredColumns = useMemo(() => {
+    if (!columns) return [];
+    return columns.filter((col) => {
+      const matchesSearch = col.column.toLowerCase().includes(searchTerm.toLowerCase());
+      const isNum = col.mean !== null;
+      if (typeFilter === 'NUMERIC') return matchesSearch && isNum;
+      if (typeFilter === 'CATEGORICAL') return matchesSearch && !isNum;
+      return matchesSearch;
+    });
+  }, [columns, searchTerm, typeFilter]);
 
-  const filteredAndSorted = useMemo(() => {
-    let list = [...(columns || [])];
-
-    // Filter by search
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      list = list.filter(c => c.column.toLowerCase().includes(q));
-    }
-
-    // Filter by type
-    if (typeFilter === 'Numeric') {
-      list = list.filter(c => c.mean !== null);
-    } else if (typeFilter === 'Categorical') {
-      list = list.filter(c => c.mean === null);
-    }
-
-    // Sort
-    list.sort((a, b) => {
+  const sortedColumns = useMemo(() => {
+    return [...filteredColumns].sort((a, b) => {
       let valA = a[sortField];
       let valB = b[sortField];
 
@@ -193,83 +191,71 @@ function ColumnStatsTable({ columns, totalRows, onViewDistribution }) {
       if (valB === null || valB === undefined) return -1;
 
       if (typeof valA === 'string') {
-        return sortDirection === 'asc'
-          ? valA.localeCompare(valB)
-          : valB.localeCompare(valA);
-      } else {
-        return sortDirection === 'asc' ? valA - valB : valB - valA;
+        return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
+      return sortAsc ? valA - valB : valB - valA;
     });
+  }, [filteredColumns, sortField, sortAsc]);
 
-    return list;
-  }, [columns, searchTerm, typeFilter, sortField, sortDirection]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredAndSorted.length / pageSize) || 1;
+  const totalPages = Math.ceil(sortedColumns.length / pageSize) || 1;
   const paginatedColumns = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return filteredAndSorted.slice(start, start + pageSize);
-  }, [filteredAndSorted, currentPage, pageSize]);
+    return sortedColumns.slice(start, start + pageSize);
+  }, [sortedColumns, currentPage, pageSize]);
 
-  // Adjust page if out of bounds
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(true);
     }
-  }, [totalPages, currentPage]);
+  };
 
-  const renderSortIcon = (field) => {
-    if (sortField !== field) {
-      return <ArrowUpDown size={12} style={{ opacity: 0.35 }} />;
-    }
-    return sortDirection === 'asc' ? (
-      <ArrowUp size={12} style={{ color: 'var(--accent-cyan)' }} />
-    ) : (
-      <ArrowDown size={12} style={{ color: 'var(--accent-cyan)' }} />
-    );
+  const getSortIcon = (field) => {
+    if (sortField !== field) return <ArrowUpDown size={12} style={{ opacity: 0.3 }} />;
+    return sortAsc ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {/* Controls Bar: Search, Type Filter, Page Size */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+      {/* Controls: Search, Type Filter, Page Size */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
           justifyContent: 'space-between',
+          alignItems: 'center',
           flexWrap: 'wrap',
           gap: '0.75rem',
         }}
       >
-        {/* Search */}
-        <div style={{ position: 'relative', width: '260px' }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: '0.75rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text-muted)',
-            }}
-          />
-          <input
-            type="text"
-            className="input"
-            placeholder="Search column..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            style={{ paddingLeft: '2.2rem', fontSize: '0.8125rem' }}
-          />
-        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 260 }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 300 }}>
+            <Search
+              size={14}
+              style={{
+                position: 'absolute',
+                left: '0.75rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted)',
+              }}
+            />
+            <input
+              type="text"
+              className="input input-sm"
+              placeholder="Search columns..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              style={{ paddingLeft: '2.25rem', width: '100%' }}
+            />
+          </div>
 
-        {/* Type Filter Pills & Page Size */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', padding: '3px', borderRadius: '8px' }}>
-            {['All', 'Numeric', 'Categorical'].map((t) => (
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: 2 }}>
+            {['ALL', 'NUMERIC', 'CATEGORICAL'].map((t) => (
               <button
                 key={t}
                 onClick={() => {
@@ -277,14 +263,14 @@ function ColumnStatsTable({ columns, totalRows, onViewDistribution }) {
                   setCurrentPage(1);
                 }}
                 style={{
-                  padding: '0.25rem 0.65rem',
                   border: 'none',
-                  borderRadius: '6px',
-                  background: typeFilter === t ? 'rgba(124,58,237,0.3)' : 'transparent',
-                  color: typeFilter === t ? 'var(--accent-violet-light)' : 'var(--text-muted)',
-                  fontSize: '0.75rem',
-                  fontWeight: typeFilter === t ? 600 : 400,
+                  background: typeFilter === t ? 'var(--accent-violet)' : 'transparent',
+                  color: typeFilter === t ? '#fff' : 'var(--text-muted)',
+                  fontSize: '0.6875rem',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: 'var(--radius-xs)',
                   cursor: 'pointer',
+                  fontWeight: typeFilter === t ? 600 : 400,
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -292,168 +278,153 @@ function ColumnStatsTable({ columns, totalRows, onViewDistribution }) {
               </button>
             ))}
           </div>
+        </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Rows per page:</span>
           <select
-            className="select"
+            className="select select-sm"
             value={pageSize}
             onChange={(e) => {
               setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-            style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+            style={{ width: 'auto', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
           >
-            <option value={10}>10 per page</option>
-            <option value={25}>25 per page</option>
-            <option value={50}>50 per page</option>
-            <option value={100}>100 per page</option>
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      {/* Statistics Table */}
-      <div style={{ overflowX: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
-        <table className="table" style={{ margin: 0 }}>
+      {/* Glassmorphism Table */}
+      <div
+        style={{
+          overflowX: 'auto',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-subtle)',
+          background: 'rgba(10, 10, 20, 0.4)',
+        }}
+      >
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
           <thead>
-            <tr>
-              <th onClick={() => handleSort('column')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Column {renderSortIcon('column')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('dtype')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Type {renderSortIcon('dtype')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('count')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Count {renderSortIcon('count')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('null_count')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Nulls {renderSortIcon('null_count')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('unique')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Unique {renderSortIcon('unique')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('mean')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Mean {renderSortIcon('mean')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('std')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Std Dev {renderSortIcon('std')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('min')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Min {renderSortIcon('min')}
-                </div>
-              </th>
-              <th onClick={() => handleSort('max')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  Max {renderSortIcon('max')}
-                </div>
-              </th>
-              <th>Action</th>
+            <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-subtle)' }}>
+              {[
+                { label: 'Column Name', field: 'column', width: '22%' },
+                { label: 'Data Type', field: 'dtype', width: '10%' },
+                { label: 'Non-Null Count', field: 'count', width: '12%' },
+                { label: 'Nulls', field: 'null_count', width: '10%' },
+                { label: 'Unique', field: 'unique', width: '10%' },
+                { label: 'Mean', field: 'mean', width: '9%' },
+                { label: 'Std Dev', field: 'std', width: '9%' },
+                { label: 'Median', field: 'median', width: '9%' },
+                { label: 'Distribution', field: null, width: '9%' },
+              ].map(({ label, field, width }) => (
+                <th
+                  key={label}
+                  onClick={() => field && handleSort(field)}
+                  style={{
+                    padding: '0.625rem 0.875rem',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 600,
+                    cursor: field ? 'pointer' : 'default',
+                    userSelect: 'none',
+                    width,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>{label}</span>
+                    {field && getSortIcon(field)}
+                  </div>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {paginatedColumns.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  No matching columns found.
+                <td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                  No columns matching criteria
                 </td>
               </tr>
             ) : (
               paginatedColumns.map((col) => {
-                const isNumeric = col.mean !== null;
-                const nullPct = totalRows ? ((col.null_count / totalRows) * 100).toFixed(1) : 0;
-
+                const isNum = col.mean !== null;
                 return (
-                  <tr key={col.column}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-                          {col.column}
-                        </span>
-                      </div>
+                  <tr
+                    key={col.column}
+                    style={{
+                      borderBottom: '1px solid rgba(255,255,255,0.02)',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td style={{ padding: '0.625rem 0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {col.column}
                     </td>
-                    <td>
+                    <td style={{ padding: '0.625rem 0.875rem' }}>
                       <span
-                        className={`badge ${
-                          col.dtype?.includes('int')
-                            ? 'badge-violet'
-                            : col.dtype?.includes('float')
-                            ? 'badge-cyan'
-                            : 'badge-emerald'
-                        }`}
-                        style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)' }}
+                        className="badge"
+                        style={{
+                          fontSize: '0.65rem',
+                          background: isNum ? 'rgba(124, 58, 237, 0.15)' : 'rgba(6, 182, 212, 0.15)',
+                          color: isNum ? 'var(--accent-violet-light)' : 'var(--accent-cyan)',
+                          border: isNum ? '1px solid rgba(124,58,237,0.3)' : '1px solid rgba(6,182,212,0.3)',
+                        }}
                       >
                         {col.dtype}
                       </span>
                     </td>
-                    <td>
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {col.count?.toLocaleString()}
-                      </span>
+                    <td style={{ padding: '0.625rem 0.875rem', color: 'var(--text-secondary)' }}>
+                      {col.count.toLocaleString()}
                     </td>
-                    <td>
-                      {col.null_count === 0 ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--success)' }}>
-                          <CheckCircle2 size={13} />
-                          <span style={{ fontSize: '0.75rem' }}>0</span>
-                        </div>
+                    <td style={{ padding: '0.625rem 0.875rem' }}>
+                      {col.null_count > 0 ? (
+                        <span style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}>
+                          <AlertTriangle size={11} />
+                          {col.null_count}
+                        </span>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#f59e0b' }}>
-                          <AlertTriangle size={13} />
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                            {col.null_count} ({nullPct}%)
-                          </span>
-                        </div>
+                        <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}>
+                          <CheckCircle2 size={11} /> 0
+                        </span>
                       )}
                     </td>
-                    <td>
-                      <span style={{ color: 'var(--text-secondary)' }}>{col.unique?.toLocaleString()}</span>
+                    <td style={{ padding: '0.625rem 0.875rem', color: 'var(--text-secondary)' }}>
+                      {col.unique.toLocaleString()}
                     </td>
-                    <td>
-                      <span style={{ color: isNumeric ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                        {col.mean !== null ? col.mean : '—'}
-                      </span>
+                    <td style={{ padding: '0.625rem 0.875rem', color: isNum ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {col.mean !== null ? col.mean : '—'}
                     </td>
-                    <td>
-                      <span style={{ color: isNumeric ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                        {col.std !== null ? col.std : '—'}
-                      </span>
+                    <td style={{ padding: '0.625rem 0.875rem', color: isNum ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {col.std !== null ? col.std : '—'}
                     </td>
-                    <td>
-                      <span style={{ color: isNumeric ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                        {col.min !== null ? col.min : '—'}
-                      </span>
+                    <td style={{ padding: '0.625rem 0.875rem', color: isNum ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {col.median !== null ? col.median : '—'}
                     </td>
-                    <td>
-                      <span style={{ color: isNumeric ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                        {col.max !== null ? col.max : '—'}
-                      </span>
-                    </td>
-                    <td>
+                    <td style={{ padding: '0.625rem 0.875rem' }}>
                       {col.histogram ? (
                         <button
                           className="btn btn-ghost btn-sm"
-                          onClick={() => onViewDistribution(col.column)}
-                          style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', gap: '0.25rem' }}
-                          title="View distribution histogram"
+                          onClick={() => onJumpToDistribution(col.column)}
+                          style={{
+                            fontSize: '0.7rem',
+                            padding: '0.2rem 0.4rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            color: 'var(--accent-cyan)',
+                          }}
                         >
-                          <BarChart3 size={12} style={{ color: 'var(--accent-violet-light)' }} />
+                          <BarChart3 size={11} />
                           Chart
                         </button>
                       ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>—</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
                       )}
                     </td>
                   </tr>
@@ -470,33 +441,33 @@ function ColumnStatsTable({ columns, totalRows, onViewDistribution }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingTop: '0.5rem',
-          flexWrap: 'wrap',
-          gap: '0.5rem',
+          fontSize: '0.75rem',
+          color: 'var(--text-muted)',
+          padding: '0.25rem 0.5rem',
         }}
       >
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          Showing {filteredAndSorted.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to{' '}
-          {Math.min(currentPage * pageSize, filteredAndSorted.length)} of {filteredAndSorted.length} columns
-        </span>
+        <div>
+          Showing {sortedColumns.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to{' '}
+          {Math.min(currentPage * pageSize, sortedColumns.length)} of {sortedColumns.length} columns
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button
             className="btn btn-ghost btn-sm"
+            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
             disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            style={{ padding: '0.3rem 0.6rem' }}
+            style={{ padding: '0.25rem 0.5rem' }}
           >
             <ChevronLeft size={14} />
           </button>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+          <span>
             Page {currentPage} of {totalPages}
           </span>
           <button
             className="btn btn-ghost btn-sm"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            style={{ padding: '0.3rem 0.6rem' }}
+            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            style={{ padding: '0.25rem 0.5rem' }}
           >
             <ChevronRight size={14} />
           </button>
@@ -505,6 +476,8 @@ function ColumnStatsTable({ columns, totalRows, onViewDistribution }) {
     </div>
   );
 }
+
+const COLORS = ['#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
 
 export default function DataProcessPage() {
   const { projectId } = useParams();
@@ -517,13 +490,15 @@ export default function DataProcessPage() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [activeTab, setActiveTab] = useState('stats');
   const [distributionFilter, setDistributionFilter] = useState('');
+  const [selectedImageClass, setSelectedImageClass] = useState('ALL');
+  const [previewImageModal, setPreviewImageModal] = useState(null);
 
   useEffect(() => {
     getFiles(projectId)
       .then((res) => {
-        const csvFiles = (res.data || []).filter((f) => f.file_type === 'csv');
-        setFiles(csvFiles);
-        if (csvFiles.length > 0) setSelectedFile(csvFiles[0].file_id);
+        const validFiles = (res.data || []).filter((f) => f.file_type === 'csv' || f.file_type === 'zip');
+        setFiles(validFiles);
+        if (validFiles.length > 0) setSelectedFile(validFiles[0].file_id);
       })
       .catch(() => {});
   }, [projectId]);
@@ -547,6 +522,9 @@ export default function DataProcessPage() {
     setActiveTab('distributions');
   };
 
+  const selectedFileObj = files.find((f) => f.file_id === selectedFile);
+  const isZipDataset = selectedFileObj?.file_type === 'zip' || stats?.dataset_type === 'image_zip';
+
   const filteredHistograms = useMemo(() => {
     if (!stats?.columns) return [];
     let cols = stats.columns.filter((c) => c.histogram);
@@ -557,6 +535,12 @@ export default function DataProcessPage() {
     }
     return cols;
   }, [stats, distributionFilter]);
+
+  const filteredImagePreviews = useMemo(() => {
+    if (!stats?.sample_previews) return [];
+    if (selectedImageClass === 'ALL') return stats.sample_previews;
+    return stats.sample_previews.filter((img) => img.class_name === selectedImageClass);
+  }, [stats, selectedImageClass]);
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -572,23 +556,35 @@ export default function DataProcessPage() {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <GitBranch size={20} style={{ color: 'var(--accent-violet-light)' }} />
+            {isZipDataset ? (
+              <FileArchive size={22} style={{ color: 'var(--accent-cyan)' }} />
+            ) : (
+              <GitBranch size={22} style={{ color: 'var(--accent-violet-light)' }} />
+            )}
             <h2>Data Analysis &amp; Statistics</h2>
+            {isZipDataset && (
+              <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                🖼️ Image Dataset (ZIP)
+              </span>
+            )}
           </div>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-            Explore column statistics, correlation heatmaps, and distribution charts for your dataset.
+            {isZipDataset
+              ? 'Inspect image classes, category balance, visual gallery thumbnails, and resolution metrics.'
+              : 'Explore column statistics, correlation heatmaps, and distribution charts for your tabular dataset.'}
           </p>
         </div>
+
         {files.length > 0 && (
           <select
             className="select"
-            style={{ width: 'auto', minWidth: 220 }}
+            style={{ width: 'auto', minWidth: 260 }}
             value={selectedFile}
             onChange={(e) => setSelectedFile(e.target.value)}
           >
             {files.map((f) => (
               <option key={f.file_id} value={f.file_id}>
-                {f.file_name}.{f.file_type} ({f.row_count?.toLocaleString() || '—'} rows)
+                {f.file_name}.{f.file_type} {f.file_type === 'zip' ? '🖼️ (Image Archive)' : `(${f.row_count?.toLocaleString() || '—'} rows)`}
               </option>
             ))}
           </select>
@@ -610,7 +606,7 @@ export default function DataProcessPage() {
             No Datasets Available
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            Upload a CSV dataset or import a demo dataset from the <strong>Dataset</strong> page first.
+            Upload a CSV / ZIP image dataset or import a demo dataset from the <strong>Dataset</strong> page first.
           </p>
         </div>
       )}
@@ -626,29 +622,51 @@ export default function DataProcessPage() {
                 gap: '1rem',
               }}
             >
-              {[
-                { label: 'Total Rows', value: stats.total_rows?.toLocaleString() },
-                { label: 'Total Columns', value: stats.total_cols },
-                {
-                  label: 'Numeric Columns',
-                  value: stats.columns?.filter((c) => c.mean !== null).length,
-                },
-                {
-                  label: 'Missing Values',
-                  value: stats.columns
-                    ?.reduce((s, c) => s + c.null_count, 0)
-                    .toLocaleString(),
-                },
-              ].map(({ label, value }) => (
-                <div key={label} className="glass-card" style={{ padding: '1rem 1.25rem' }}>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                    {label}
-                  </p>
-                  <p style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {value ?? '—'}
-                  </p>
-                </div>
-              ))}
+              {isZipDataset
+                ? [
+                    { label: 'Total Images', value: stats.total_images?.toLocaleString() },
+                    { label: 'Class Categories', value: stats.total_classes },
+                    {
+                      label: 'Color Mode',
+                      value: stats.color_modes?.join(', ') || 'RGB',
+                    },
+                    {
+                      label: 'Sample Resolution',
+                      value: stats.resolutions?.join(', ') || '64×64',
+                    },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="glass-card" style={{ padding: '1rem 1.25rem' }}>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                        {label}
+                      </p>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {value ?? '—'}
+                      </p>
+                    </div>
+                  ))
+                : [
+                    { label: 'Total Rows', value: stats.total_rows?.toLocaleString() },
+                    { label: 'Total Columns', value: stats.total_cols },
+                    {
+                      label: 'Numeric Columns',
+                      value: stats.columns?.filter((c) => c.mean !== null).length,
+                    },
+                    {
+                      label: 'Missing Values',
+                      value: stats.columns
+                        ?.reduce((s, c) => s + c.null_count, 0)
+                        .toLocaleString(),
+                    },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="glass-card" style={{ padding: '1rem 1.25rem' }}>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                        {label}
+                      </p>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {value ?? '—'}
+                      </p>
+                    </div>
+                  ))}
             </div>
           )}
 
@@ -658,138 +676,345 @@ export default function DataProcessPage() {
               display: 'flex',
               gap: '0.5rem',
               borderBottom: '1px solid var(--border-subtle)',
-              paddingBottom: '0',
+              paddingBottom: '0.5rem',
             }}
           >
-            {[
-              { id: 'stats', label: '📊 Column Statistics' },
-              { id: 'heatmap', label: '🔥 Correlation Heatmap' },
-              { id: 'distributions', label: '📈 Feature Distributions' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  padding: '0.625rem 1.25rem',
-                  border: 'none',
-                  borderBottom:
-                    activeTab === tab.id
-                      ? '2px solid var(--accent-violet-light)'
-                      : '2px solid transparent',
-                  background: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: activeTab === tab.id ? 600 : 400,
-                  color: activeTab === tab.id ? '#a78bfa' : 'var(--text-muted)',
-                  transition: 'color 0.15s ease',
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
+            {isZipDataset ? (
+              <>
+                <button
+                  className={`btn btn-sm ${activeTab === 'stats' ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setActiveTab('stats')}
+                >
+                  <Grid size={14} />
+                  Image Gallery ({stats?.sample_previews?.length || 0})
+                </button>
+                <button
+                  className={`btn btn-sm ${activeTab === 'distributions' ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setActiveTab('distributions')}
+                >
+                  <BarChart3 size={14} />
+                  Class Distribution ({stats?.total_classes || 0} Classes)
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className={`btn btn-sm ${activeTab === 'stats' ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setActiveTab('stats')}
+                >
+                  <BarChart3 size={14} />
+                  Column Statistics
+                </button>
+                <button
+                  className={`btn btn-sm ${activeTab === 'correlation' ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setActiveTab('correlation')}
+                >
+                  <GitBranch size={14} />
+                  Correlation Heatmap
+                </button>
+                <button
+                  className={`btn btn-sm ${activeTab === 'distributions' ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setActiveTab('distributions')}
+                >
+                  <BarChart3 size={14} />
+                  Distributions
+                </button>
+              </>
+            )}
           </div>
 
-          {/* Tab 1: Column Statistics Table */}
-          {activeTab === 'stats' && (
-            <div className="glass-card-elevated" style={{ padding: '1.5rem' }}>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                  Dataset Column Summary
-                </h3>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                  Detailed summary metrics, data types, missing counts, central tendencies, and dispersions.
-                </p>
+          {/* ── ZIP DATASET: Image Gallery Tab ─────────────────────────── */}
+          {isZipDataset && activeTab === 'stats' && (
+            <div className="glass-card-elevated" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Class Filter Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filter by Class:</span>
+                  <button
+                    onClick={() => setSelectedImageClass('ALL')}
+                    className={`btn btn-sm ${selectedImageClass === 'ALL' ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                  >
+                    All ({stats?.sample_previews?.length || 0})
+                  </button>
+                  {stats?.classes?.map((cls) => (
+                    <button
+                      key={cls.class_name}
+                      onClick={() => setSelectedImageClass(cls.class_name)}
+                      className={`btn btn-sm ${selectedImageClass === cls.class_name ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                    >
+                      {cls.class_name} ({cls.count})
+                    </button>
+                  ))}
+                </div>
+
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Showing {filteredImagePreviews.length} sample thumbnails
+                </span>
               </div>
 
-              {loadingStats ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-                  <div className="spinner" style={{ width: 36, height: 36 }} />
-                </div>
-              ) : stats?.columns?.length > 0 ? (
-                <ColumnStatsTable
-                  columns={stats.columns}
-                  totalRows={stats.total_rows}
-                  onViewDistribution={handleJumpToDistribution}
-                />
-              ) : (
-                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
-                  No columns found for this dataset.
-                </p>
-              )}
+              {/* Gallery Grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+                  gap: '1rem',
+                }}
+              >
+                {filteredImagePreviews.map((img, idx) => (
+                  <div
+                    key={idx}
+                    className="glass-card"
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s ease, border-color 0.2s ease',
+                    }}
+                    onClick={() => setPreviewImageModal(img)}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+                  >
+                    <div
+                      style={{
+                        width: '100%',
+                        height: 120,
+                        background: 'rgba(0,0,0,0.4)',
+                        borderRadius: 'var(--radius-sm)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                      }}
+                    >
+                      {img.thumbnail_b64 ? (
+                        <img
+                          src={img.thumbnail_b64}
+                          alt={img.filename}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <ImageIcon size={32} style={{ opacity: 0.3 }} />
+                      )}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 4,
+                          top: 4,
+                          background: 'rgba(0,0,0,0.6)',
+                          borderRadius: 4,
+                          padding: 3,
+                          display: 'flex',
+                        }}
+                      >
+                        <Maximize2 size={11} style={{ color: '#fff' }} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                        <span
+                          className="badge badge-emerald"
+                          style={{ fontSize: '0.625rem', padding: '0.15rem 0.4rem' }}
+                        >
+                          {img.class_name}
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                          {img.dimensions}
+                        </span>
+                      </div>
+                      <p
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--text-secondary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      >
+                        {img.filename}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Tab 2: Correlation Heatmap */}
-          {activeTab === 'heatmap' && (
-            <div className="glass-card-elevated" style={{ padding: '1.5rem' }}>
-              <h3 style={{ marginBottom: '0.5rem', fontSize: '1rem', color: 'var(--text-primary)' }}>
-                Correlation Matrix
-              </h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                Shows pairwise Pearson correlations. Violet = positive, Cyan = negative. Hover cells for exact values.
-              </p>
-              {loadingCorr ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-                  <div className="spinner" style={{ width: 36, height: 36 }} />
-                </div>
-              ) : correlation?.columns?.length > 0 ? (
-                <CorrelationHeatmap columns={correlation.columns} matrix={correlation.matrix} />
-              ) : (
-                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
-                  No numeric columns found in this dataset.
-                </p>
+          {/* ── ZIP DATASET: Class Distribution Tab ────────────────────── */}
+          {isZipDataset && activeTab === 'distributions' && (
+            <div className="glass-card-elevated" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Image Count per Class</h3>
+                <span className="badge badge-emerald" style={{ fontSize: '0.75rem' }}>
+                  ✓ Balanced Dataset
+                </span>
+              </div>
+
+              {stats?.classes && (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={stats.classes} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                    <XAxis dataKey="class_name" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'rgba(16,16,31,0.95)',
+                        border: '1px solid var(--border-medium)',
+                        borderRadius: 6,
+                      }}
+                      formatter={(val) => [`${val} Images`, 'Sample Count']}
+                    />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                      {stats.classes.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               )}
+
+              {/* Breakdown Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <th style={{ padding: '0.625rem 0.875rem', color: 'var(--text-secondary)' }}>Class Category</th>
+                      <th style={{ padding: '0.625rem 0.875rem', color: 'var(--text-secondary)' }}>Image Count</th>
+                      <th style={{ padding: '0.625rem 0.875rem', color: 'var(--text-secondary)' }}>Share (%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats?.classes?.map((c) => (
+                      <tr key={c.class_name} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                        <td style={{ padding: '0.625rem 0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {c.class_name}
+                        </td>
+                        <td style={{ padding: '0.625rem 0.875rem', color: 'var(--text-secondary)' }}>
+                          {c.count.toLocaleString()}
+                        </td>
+                        <td style={{ padding: '0.625rem 0.875rem', color: 'var(--accent-cyan)' }}>
+                          {c.percentage}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* Tab 3: Feature Distributions */}
-          {activeTab === 'distributions' && (
+          {/* ── TABULAR CSV DATASET: Column Statistics Tab ──────────────── */}
+          {!isZipDataset && activeTab === 'stats' && (
             <div className="glass-card-elevated" style={{ padding: '1.5rem' }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginBottom: '1.5rem',
+                  marginBottom: '1.25rem',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <BarChart3 size={18} style={{ color: 'var(--accent-violet-light)' }} />
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Column Statistics ({stats?.columns?.length || 0} Columns)
+                  </h3>
+                </div>
+              </div>
+
+              {loadingStats ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <div className="spinner" style={{ margin: '0 auto 1rem', width: 24, height: 24 }} />
+                  Computing statistics...
+                </div>
+              ) : stats?.columns ? (
+                <ColumnStatsTable
+                  columns={stats.columns}
+                  onJumpToDistribution={handleJumpToDistribution}
+                />
+              ) : null}
+            </div>
+          )}
+
+          {/* ── TABULAR CSV DATASET: Correlation Heatmap Tab ────────────── */}
+          {!isZipDataset && activeTab === 'correlation' && (
+            <div className="glass-card-elevated" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                <GitBranch size={18} style={{ color: 'var(--accent-violet-light)' }} />
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Feature Correlation Heatmap
+                </h3>
+              </div>
+
+              {loadingCorr ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <div className="spinner" style={{ margin: '0 auto 1rem', width: 24, height: 24 }} />
+                  Computing correlation matrix...
+                </div>
+              ) : correlation?.columns?.length > 0 ? (
+                <CorrelationHeatmap columns={correlation.columns} matrix={correlation.matrix} />
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  No numeric columns available to compute correlation.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── TABULAR CSV DATASET: Distributions Tab ─────────────────── */}
+          {!isZipDataset && activeTab === 'distributions' && (
+            <div className="glass-card-elevated" style={{ padding: '1.5rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '1.25rem',
                   flexWrap: 'wrap',
                   gap: '0.75rem',
                 }}
               >
-                <div>
-                  <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                    Feature Distribution Histograms
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <BarChart3 size={18} style={{ color: 'var(--accent-cyan)' }} />
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Column Distributions &amp; Histograms
                   </h3>
-                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                    Binned frequency counts for numeric variables in the selected dataset.
-                  </p>
                 </div>
-                {stats?.columns?.some((c) => c.histogram) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="Filter histograms..."
-                      value={distributionFilter}
-                      onChange={(e) => setDistributionFilter(e.target.value)}
-                      style={{ width: '200px', fontSize: '0.78rem', padding: '0.35rem 0.65rem' }}
-                    />
-                    {distributionFilter && (
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => setDistributionFilter('')}
-                        style={{ fontSize: '0.75rem' }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                )}
+
+                <div style={{ position: 'relative', width: 240 }}>
+                  <Filter
+                    size={13}
+                    style={{
+                      position: 'absolute',
+                      left: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-muted)',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="input input-sm"
+                    placeholder="Filter distribution..."
+                    value={distributionFilter}
+                    onChange={(e) => setDistributionFilter(e.target.value)}
+                    style={{ paddingLeft: '2rem', width: '100%' }}
+                  />
+                </div>
               </div>
 
-              {loadingStats ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-                  <div className="spinner" style={{ width: 36, height: 36 }} />
-                </div>
+              {filteredHistograms.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', padding: '2rem' }}>
+                  No histograms available for the filtered columns.
+                </p>
               ) : (
                 <div
                   style={{
@@ -802,71 +1027,116 @@ export default function DataProcessPage() {
                     <div
                       key={col.column}
                       className="glass-card"
-                      style={{
-                        padding: '1.125rem',
-                        borderRadius: 'var(--radius-md)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.75rem',
-                      }}
+                      style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}
                     >
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
+                          marginBottom: '0.75rem',
                         }}
                       >
-                        <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                           {col.column}
-                        </span>
-                        <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>
-                          μ: {col.mean} | σ: {col.std ?? '—'}
+                        </h4>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Mean: {col.mean ?? 'N/A'}
                         </span>
                       </div>
-
-                      <div style={{ height: 200, width: '100%' }}>
-                        <ResponsiveContainer>
-                          <BarChart data={col.histogram} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                            <XAxis
-                              dataKey="bin"
-                              tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
-                              angle={-25}
-                              textAnchor="end"
-                              interval={0}
-                            />
-                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                            <Tooltip
-                              contentStyle={{
-                                background: 'rgba(16,16,31,0.95)',
-                                border: '1px solid var(--border-medium)',
-                                borderRadius: 'var(--radius-sm)',
-                                fontSize: '0.75rem',
-                              }}
-                              itemStyle={{ color: '#c4b5fd' }}
-                            />
-                            <Bar
-                              dataKey="count"
-                              fill="var(--accent-violet-light)"
-                              radius={[4, 4, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <BarChart data={col.histogram} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                          <XAxis dataKey="bin" tick={{ fontSize: 9, fill: '#64748b' }} />
+                          <YAxis tick={{ fontSize: 9, fill: '#64748b' }} />
+                          <Tooltip
+                            contentStyle={{
+                              background: 'rgba(16,16,31,0.95)',
+                              border: '1px solid var(--border-medium)',
+                              borderRadius: 4,
+                              fontSize: '0.75rem',
+                            }}
+                          />
+                          <Bar dataKey="count" fill="var(--accent-violet)" radius={[2, 2, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
                   ))}
-                  {filteredHistograms.length === 0 && (
-                    <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem', gridColumn: '1 / -1' }}>
-                      {distributionFilter
-                        ? `No numeric histograms matching "${distributionFilter}".`
-                        : 'No numeric columns available for distribution.'}
-                    </p>
-                  )}
                 </div>
               )}
             </div>
           )}
         </>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImageModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.8)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1.5rem',
+          }}
+          onClick={() => setPreviewImageModal(null)}
+        >
+          <div
+            className="glass-card-elevated"
+            style={{
+              maxWidth: 480,
+              width: '100%',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="badge badge-emerald">{previewImageModal.class_name}</span>
+                <h4 style={{ fontSize: '0.9375rem', fontWeight: 600 }}>{previewImageModal.filename}</h4>
+              </div>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setPreviewImageModal(null)}
+                style={{ padding: 4 }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div
+              style={{
+                width: '100%',
+                height: 280,
+                background: 'rgba(0,0,0,0.5)',
+                borderRadius: 'var(--radius-md)',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <img
+                src={previewImageModal.thumbnail_b64}
+                alt={previewImageModal.filename}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <div><strong>Dimensions:</strong> {previewImageModal.dimensions}</div>
+              <div><strong>Format:</strong> {previewImageModal.format}</div>
+              <div><strong>Path:</strong> {previewImageModal.path}</div>
+              <div><strong>Mode:</strong> {previewImageModal.mode}</div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

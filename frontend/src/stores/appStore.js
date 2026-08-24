@@ -32,7 +32,13 @@ export const useAppStore = create((set, get) => ({
   isTraining: false,
   setIsTraining: (v) => set({ isTraining: v }),
   addTrainingMetric: (metric) =>
-    set(state => ({ trainingMetrics: [...state.trainingMetrics, metric] })),
+    set(state => {
+      // Avoid duplicate epochs
+      const existing = state.trainingMetrics.filter(m => m.epoch !== metric.epoch);
+      return { trainingMetrics: [...existing, metric].sort((a, b) => a.epoch - b.epoch) };
+    }),
+  setTrainingMetrics: (metrics) => set({ trainingMetrics: metrics }),
+  clearTraining: () => set({ trainingMetrics: [], isTraining: false }),
   // Pretrained State
   pretrainedCatalog: [],
   setPretrainedCatalog: (catalog) => set({ pretrainedCatalog: catalog }),

@@ -1,10 +1,15 @@
-"""Data processing and EDA service."""
+"""Data processing and EDA service with support for Tabular CSV and Image ZIP datasets."""
 
+import base64
+import io
+import os
 import uuid as uuid_pkg
+import zipfile
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from PIL import Image
 from sqlmodel import Session, select
 
 from app.config import get_settings
@@ -17,7 +22,19 @@ def _resp(status_code: int, success: bool, message: str, data: Any = None) -> tu
 
 def _get_file_path(file: DataFile) -> str:
     settings = get_settings()
-    return f"{settings.upload_folder}/{file.file_name}.{file.file_type}"
+    cand1 = os.path.join(settings.upload_folder, f"{file.file_name}.{file.file_type}")
+    cand2 = os.path.join(settings.upload_folder, file.file_name)
+    if os.path.exists(cand1):
+        return cand1
+    if os.path.exists(cand2):
+        return cand2
+
+    # Check demo datasets fallback
+    demo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "demo_datasets", f"{file.file_name}.{file.file_type}"))
+    if os.path.exists(demo_path):
+        return demo_path
+
+    return cand1
 
 
 def add_target_service(db: Session, file_id: str, target: str) -> tuple:
@@ -41,6 +58,9 @@ def get_data_metrics(db: Session, file_id: str) -> tuple:
         return _resp(400, False, "File doesn't exist")
 
     file_path = _get_file_path(file)
+    if file.file_type == "zip":
+        return get_column_stats_service(db, file_id)
+
     try:
         df = pd.read_csv(file_path)
     except FileNotFoundError:
@@ -61,6 +81,9 @@ def get_correlation_matrix(db: Session, file_id: str) -> tuple:
     file = db.exec(select(DataFile).where(DataFile.id == file_id)).first()
     if not file:
         return _resp(400, False, "File doesn't exist")
+
+    if file.file_type == "zip":
+        return _resp(200, True, "Correlation matrix is only applicable to tabular CSV datasets.", {"columns": [], "matrix": [], "dataset_type": "image_zip"})
 
     file_path = _get_file_path(file)
     try:
@@ -84,6 +107,102 @@ def get_column_stats_service(db: Session, file_id: str) -> tuple:
         return _resp(400, False, "File doesn't exist")
 
     file_path = _get_file_path(file)
+
+    # ── Image ZIP Dataset Processing ─────────────────────────────────────────
+    if file.file_type == "zip":
+        try:
+            if not os.path.exists(file_path):
+                return _resp(404, False, f"ZIP dataset file not found at: {file_path}")
+
+            image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff")
+            class_counts: dict[str, int] = {}
+            sample_previews = []
+            resolutions = set()
+            color_modes = set()
+            total_images = 0
+
+            with zipfile.ZipFile(file_path, "r") as zf:
+                all_names = [n for n in zf.namelist() if n.lower().endswith(image_exts) and not n.startswith("__MACOSX")]
+                total_images = len(all_names)
+
+                for name in all_names:
+                    parts = name.replace("\\", "/").split("/")
+                    cls = parts[-2] if len(parts) > 1 and parts[-2] not in (".", "..", "dataset", "images", "data") else "default"
+                    class_counts[cls] = class_counts.get(cls, 0) + 1
+
+                    # Extract up to 24 thumbnail previews
+                    if len(sample_previews) < 24:
+                        try:
+                            img_bytes = zf.read(name)
+                            img = Image.open(io.BytesIO(img_bytes))
+                            resolutions.add(f"{img.width}×{img.height}")
+                            color_modes.add(img.mode)
+
+                            # Create small thumbnail
+                            thumb = img.copy()
+                            thumb.thumbnail((128, 128))
+                            thumb_buf = io.BytesIO()
+                            thumb.convert("RGB").save(thumb_buf, format="JPEG", quality=75)
+                            b64 = base64.b64encode(thumb_buf.getvalue()).decode("utf-8")
+
+                            sample_previews.append({
+                                "filename": os.path.basename(name),
+                                "path": name,
+                                "class_name": cls,
+                                "dimensions": f"{img.width}×{img.height}",
+                                "format": img.format or "JPEG",
+                                "mode": img.mode,
+                                "thumbnail_b64": f"data:image/jpeg;base64,{b64}",
+                            })
+                        except Exception:
+                            pass
+
+            classes_list = sorted(list(class_counts.keys()))
+            class_summary = [
+                {
+                    "class_name": c,
+                    "count": class_counts[c],
+                    "percentage": round((class_counts[c] / total_images) * 100, 1) if total_images > 0 else 0,
+                }
+                for c in classes_list
+            ]
+
+            histogram = [{"bin": c["class_name"], "count": c["count"]} for c in class_summary]
+
+            columns_info = [
+                {
+                    "column": "class_category",
+                    "dtype": "category",
+                    "count": total_images,
+                    "null_count": 0,
+                    "unique": len(classes_list),
+                    "mean": None,
+                    "std": None,
+                    "median": None,
+                    "min": None,
+                    "max": None,
+                    "histogram": histogram,
+                }
+            ]
+
+            data = {
+                "dataset_type": "image_zip",
+                "total_rows": total_images,
+                "total_cols": len(classes_list),
+                "total_images": total_images,
+                "total_classes": len(classes_list),
+                "classes": class_summary,
+                "resolutions": list(resolutions),
+                "color_modes": list(color_modes),
+                "sample_previews": sample_previews,
+                "columns": columns_info,
+            }
+            return _resp(200, True, "Image dataset statistics generated", data)
+
+        except Exception as e:
+            return _resp(500, False, f"Error processing ZIP dataset: {e}")
+
+    # ── Tabular CSV Dataset Processing ───────────────────────────────────────
     try:
         df = pd.read_csv(file_path)
     except Exception as e:
@@ -94,7 +213,7 @@ def get_column_stats_service(db: Session, file_id: str) -> tuple:
     for col in df.columns:
         is_num = col in numeric_cols
         null_count = int(df[col].isnull().sum())
-        
+
         histogram = None
         if is_num and pd.notna(df[col].mean()) and len(df[col].dropna()) > 0:
             counts, bins = np.histogram(df[col].dropna(), bins=10)
@@ -111,11 +230,16 @@ def get_column_stats_service(db: Session, file_id: str) -> tuple:
             "min": round(float(df[col].min()), 4) if is_num and pd.notna(df[col].min()) else None,
             "max": round(float(df[col].max()), 4) if is_num and pd.notna(df[col].max()) else None,
             "unique": int(df[col].nunique()),
-            "histogram": histogram
+            "histogram": histogram,
         }
         columns.append(entry)
 
-    data = {"total_rows": len(df), "total_cols": len(df.columns), "columns": columns}
+    data = {
+        "dataset_type": "tabular_csv",
+        "total_rows": len(df),
+        "total_cols": len(df.columns),
+        "columns": columns,
+    }
     return _resp(200, True, "Column statistics generated", data)
 
 
@@ -125,6 +249,27 @@ def get_file_data(db: Session, file_id: str) -> tuple:
         return _resp(400, False, "File not found")
 
     file_path = _get_file_path(file)
+
+    if file.file_type == "zip":
+        try:
+            image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff")
+            images = []
+            with zipfile.ZipFile(file_path, "r") as zf:
+                all_names = [n for n in zf.namelist() if n.lower().endswith(image_exts) and not n.startswith("__MACOSX")]
+                for name in all_names[:100]:
+                    parts = name.replace("\\", "/").split("/")
+                    cls = parts[-2] if len(parts) > 1 and parts[-2] not in (".", "..", "dataset", "images", "data") else "default"
+                    size_kb = round(zf.getinfo(name).file_size / 1024, 1)
+                    images.append({
+                        "file_name": os.path.basename(name),
+                        "class_name": cls,
+                        "size_kb": size_kb,
+                        "path": name,
+                    })
+            return _resp(200, True, "Images manifest retrieved", images)
+        except Exception as e:
+            return _resp(500, False, f"Error reading ZIP: {e}")
+
     try:
         df = pd.read_csv(file_path, nrows=200)  # Limit preview
     except Exception as e:
