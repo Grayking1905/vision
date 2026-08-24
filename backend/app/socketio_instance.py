@@ -13,6 +13,16 @@ sio = socketio.AsyncServer(
 TRAINING_NS = "/training"
 
 
+@sio.on("connect")
+async def on_connect_root(sid, environ):
+    pass
+
+
+@sio.on("disconnect")
+async def on_disconnect_root(sid):
+    pass
+
+
 @sio.on("connect", namespace=TRAINING_NS)
 async def on_connect(sid, environ):
     pass

@@ -35,6 +35,13 @@ class ModelBasic(SQLModel, table=True):
     epochs: Optional[int] = Field(default=None, nullable=True)
     batch_size: Optional[int] = Field(default=None, nullable=True)
     loss: Optional[str] = Field(default=None, max_length=50, nullable=True)
+    is_trained: Optional[bool] = Field(default=False, nullable=True)
+    trained_model_path: Optional[str] = Field(default=None, max_length=500, nullable=True)
+    final_accuracy: Optional[float] = Field(default=None, nullable=True)
+    final_loss: Optional[float] = Field(default=None, nullable=True)
+    val_accuracy: Optional[float] = Field(default=None, nullable=True)
+    val_loss: Optional[float] = Field(default=None, nullable=True)
+    trained_at: Optional[datetime] = Field(default=None, nullable=True)
     created_on: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime, server_default=func.now())
     )

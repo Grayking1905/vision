@@ -40,6 +40,23 @@ def add_file_service(db: Session, filename: str, file_content: bytes, project_id
             row_count = sum(c.shape[0] for c in pd.read_csv(file_path, chunksize=10_000))
         except Exception:
             pass
+    elif file_type_db == "zip":
+        try:
+            import zipfile
+            with zipfile.ZipFile(file_path, "r") as zf:
+                image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff")
+                image_files = [n for n in zf.namelist() if n.lower().endswith(image_exts) and not n.startswith("__MACOSX")]
+                row_count = len(image_files)
+                classes = set()
+                for img_path in image_files:
+                    parts = img_path.replace("\\", "/").split("/")
+                    if len(parts) > 1:
+                        cls = parts[-2]
+                        if cls and cls.lower() not in (".", "..", "dataset", "images", "data"):
+                            classes.add(cls)
+                columns_list = sorted(list(classes)) if classes else ["images"]
+        except Exception:
+            pass
 
     record = DataFile(
         file_name=file_name_db,

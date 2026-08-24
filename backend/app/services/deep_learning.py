@@ -164,7 +164,24 @@ def get_model_list_service(db: Session, project_id: str | None = None) -> tuple:
     if project_id:
         stmt = stmt.where(ModelBasic.project_id == project_id)
     models = db.exec(stmt).all()
-    data = [{"id": m.id, "model_name": m.model_name, "created_on": m.created_on.isoformat() if m.created_on else None} for m in models]
+    data = [
+        {
+            "id": m.id,
+            "model_name": m.model_name,
+            "file_id": m.file_id,
+            "target_field": m.target_field,
+            "epochs": m.epochs,
+            "is_trained": bool(m.is_trained),
+            "trained_model_path": m.trained_model_path,
+            "final_accuracy": m.final_accuracy,
+            "final_loss": m.final_loss,
+            "val_accuracy": m.val_accuracy,
+            "val_loss": m.val_loss,
+            "trained_at": m.trained_at.isoformat() if m.trained_at else None,
+            "created_on": m.created_on.isoformat() if m.created_on else None,
+        }
+        for m in models
+    ]
     return _resp(200, True, "Models retrieved", data)
 
 
@@ -193,19 +210,120 @@ def delete_model_service(db: Session, model_id: int) -> tuple:
     with contextlib.suppress(OSError):
         os.remove(model_path)
 
+    # Also clean up trained model artifacts if present
+    trained_keras = os.path.join(settings.trained_model_folder, f"{model_name}_trained.keras")
+    with contextlib.suppress(OSError):
+        os.remove(trained_keras)
+
     return _resp(200, True, f"Model '{model_name}' deleted")
 
 
-async def run_model_service(db: Session, model_name: str, project_id: str | None, loop) -> tuple:
+async def run_model_service(
+    db: Session,
+    model_name: str,
+    project_id: str | None = None,
+    loop = None,
+    config_overrides: dict | None = None,
+) -> tuple:
     import asyncio
+    from app.models import DataFile
+
     model = db.exec(select(ModelBasic).where(ModelBasic.model_name == model_name)).first()
     if not model:
-        return _resp(404, False, "Model not found")
-    if model.file_id is None or model.epochs is None:
-        return _resp(400, False, "Training configuration not set. Configure training first.")
+        return _resp(404, False, f"Model '{model_name}' not found")
+
+    # Apply any config overrides passed in the request
+    if config_overrides:
+        if config_overrides.get("file_id"):
+            model.file_id = config_overrides["file_id"]
+        if config_overrides.get("target_field"):
+            model.target_field = config_overrides["target_field"]
+        if config_overrides.get("epochs"):
+            model.epochs = config_overrides["epochs"]
+        if config_overrides.get("batch_size"):
+            model.batch_size = config_overrides["batch_size"]
+        if config_overrides.get("optimizer"):
+            model.optimizer = config_overrides["optimizer"]
+        if config_overrides.get("metric"):
+            model.metric = config_overrides["metric"]
+        if config_overrides.get("training_split"):
+            model.training_split = config_overrides["training_split"]
+        if config_overrides.get("problem_type_id"):
+            model.model_type = config_overrides["problem_type_id"]
+
+    # Auto-resolve dataset file if not set
+    if not model.file_id:
+        file_query = select(DataFile).where(DataFile.file_type == "csv")
+        if project_id:
+            file_query = file_query.where(DataFile.project_id == project_id)
+        first_file = db.exec(file_query).first()
+        if not first_file:
+            first_file = db.exec(select(DataFile).where(DataFile.file_type == "csv")).first()
+
+        if first_file:
+            model.file_id = first_file.id
+            if not model.target_field and first_file.columns:
+                model.target_field = first_file.columns[-1]
+
+    if not model.epochs:
+        model.epochs = 15
+    if not model.batch_size:
+        model.batch_size = 32
+    if not model.optimizer:
+        model.optimizer = "adam"
+    if not model.metric:
+        model.metric = "accuracy"
+    if not model.training_split:
+        model.training_split = 80.0
+
+    db.add(model)
+    db.commit()
+    db.refresh(model)
 
     try:
-        await asyncio.to_thread(model_run, model_name, db, loop)
-        return _resp(200, True, "Training completed")
+        result = await asyncio.to_thread(model_run, model_name, db, loop)
+        return _resp(200, True, "Training completed successfully", result.get("data", {}))
     except Exception as e:
         return _resp(400, False, f"Training failed: {e}")
+
+
+def get_trained_models_service(db: Session, project_id: str | None = None) -> tuple:
+    """List all models that have been successfully trained locally."""
+    from app.config import get_settings
+    settings = get_settings()
+
+    stmt = select(ModelBasic).where(ModelBasic.is_trained == True)  # noqa: E712
+    if project_id:
+        stmt = stmt.where(ModelBasic.project_id == project_id)
+
+    models = db.exec(stmt).all()
+    results = []
+
+    for m in models:
+        file_size_bytes = 0
+        keras_file = os.path.join(settings.trained_model_folder, f"{m.model_name}_trained.keras")
+        if os.path.exists(keras_file):
+            file_size_bytes = os.path.getsize(keras_file)
+
+        results.append({
+            "id": m.id,
+            "model_name": m.model_name,
+            "project_id": m.project_id,
+            "file_id": m.file_id,
+            "target_field": m.target_field,
+            "epochs": m.epochs,
+            "optimizer": m.optimizer,
+            "metric": m.metric,
+            "final_accuracy": m.final_accuracy,
+            "final_loss": m.final_loss,
+            "val_accuracy": m.val_accuracy,
+            "val_loss": m.val_loss,
+            "trained_model_path": m.trained_model_path,
+            "relative_path": f"data/trained_models/{m.model_name}_trained.keras",
+            "file_size_bytes": file_size_bytes,
+            "file_size_formatted": f"{file_size_bytes / (1024 * 1024):.2f} MB" if file_size_bytes > 0 else "—",
+            "trained_at": m.trained_at.isoformat() if m.trained_at else None,
+        })
+
+    return _resp(200, True, "Trained models retrieved", results)
+
