@@ -106,6 +106,8 @@ def get_column_stats_service(db: Session, file_id: str) -> tuple:
             "count": int(df[col].count()),
             "null_count": null_count,
             "mean": round(float(df[col].mean()), 4) if is_num and pd.notna(df[col].mean()) else None,
+            "std": round(float(df[col].std()), 4) if is_num and pd.notna(df[col].std()) else None,
+            "median": round(float(df[col].median()), 4) if is_num and pd.notna(df[col].median()) else None,
             "min": round(float(df[col].min()), 4) if is_num and pd.notna(df[col].min()) else None,
             "max": round(float(df[col].max()), 4) if is_num and pd.notna(df[col].max()) else None,
             "unique": int(df[col].nunique()),

@@ -1,9 +1,10 @@
 import { Outlet, NavLink, useParams } from 'react-router-dom';
-import { Database, GitBranch, Cpu, Activity, ChevronRight, Box, Plug } from 'lucide-react';
+import { Database, GitBranch, Cpu, Activity, ChevronRight, Box, Plug, LayoutTemplate } from 'lucide-react';
 
 const navItems = [
   { to: 'dataset', label: 'Dataset', icon: Database, description: 'Upload & manage data' },
   { to: 'process', label: 'Process', icon: GitBranch, description: 'EDA & preprocessing' },
+  { to: 'templates', label: 'Templates', icon: LayoutTemplate, description: 'Prebuilt architectures' },
   { to: 'canvas', label: 'Canvas', icon: Cpu, description: 'Build neural network' },
   { to: 'pretrained', label: 'Model Hub', icon: Box, description: 'Pretrained & fine-tune' },
   { to: 'training', label: 'Training', icon: Activity, description: 'Train & monitor' },
